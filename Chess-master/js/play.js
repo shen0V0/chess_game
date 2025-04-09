@@ -1,55 +1,62 @@
+/*! 一叶孤舟 | qq:28701884 | 欢迎指教 */
 
 var play = play||{};
+play.init = function (depth, map) {
+    var map = map || com.initMap;
+    var depth = depth || 3;
 
-play.init = function (depth, map){
-	var map = map || com.initMap;
-	var depth = depth || 3
-	play.my				=	1;				//red side, default for player
-	play.nowMap			=	map;
-	play.map 			=	com.arr2Clone ( map );		//init map
-	play.nowManKey		=	false;			//piece been selected
-	play.pace 			=	[];				//movement record
-	play.isPlay 		=	true ;			//Moveable?
-	
-	play.bylaw 			= 	com.bylaw;
-	play.show 			= 	com.show;
-	play.showPane 		= 	com.showPane;
-	play.isOffensive	=	true;			//player first or not
-	play.depth			=	depth;			//depth
-	play.isFoul			=	false;			//check foul
-	com.pane.isShow		=	 false;			//hide piece
-	
-	play.mans 			=	com.mans	= {};
-	
-	com.childList.length = 3
-	com.createMans( map )		//create pieces
-	com.bg.show();
-	
-	//init pieces
-	for (var i=0; i<play.map.length; i++){
-		for (var n=0; n<play.map[i].length; n++){
-			var key = play.map[i][n];
-			if (key){
-				com.mans[key].x=n;
-				com.mans[key].y=i;
-				com.mans[key].isShow = true;
-			}
-		}
-	}
-	play.show();
-	
-	
-	com.canvas.addEventListener("click",play.clickCanvas)
-	
-	
-}
+        play.my = -1;  // Human becomes black.
+   
+    
+    play.nowMap = map;
+    play.map = com.arr2Clone(map);
+    play.nowManKey = false;
+    play.pace = [];
+    play.isPlay = true;
+    
+    play.bylaw = com.bylaw;
+    play.show = com.show;
+    play.showPane = com.showPane;
+    
+    play.depth = depth;
+    play.isFoul = false;
+    com.pane.isShow = false;
+    
+    // Clear pieces and initialize.
+    play.mans = com.mans = {};
+    com.createMans(map);
+    com.bg.show();
+    
+    for (var i = 0; i < play.map.length; i++) {
+        for (var n = 0; n < play.map[i].length; n++) {
+            var key = play.map[i][n];
+            if (key) {
+                com.mans[key].x = n;
+                com.mans[key].y = i;
+                com.mans[key].isShow = true;
+            }
+        }
+    }
+    play.show();
+    
+    // Bind the click event.
+    com.canvas.addEventListener("click", play.clickCanvas);
+    
+    // If human is not offensive (AI goes first), schedule the AI move.
+    if (!play.isOffensive) {
+        setTimeout(function() {
+            // Note: inside AIPlay we want the AI to play as red.
+            play.AIPlay();
+        }, 500);
+    }
+};
 
 
 
-//regret
+//悔棋
 play.regret = function (){
 	var map  = com.arr2Clone(com.initMap);
-	//init pieces
+	//初始化所有棋子
 	for (var i=0; i<map.length; i++){
 		for (var n=0; n<map[i].length; n++){
 			var key = map[i][n];
@@ -71,6 +78,7 @@ play.regret = function (){
 		var newX = parseInt(p[2], 10);
 		var newY = parseInt(p[3], 10);
 		var key=map[y][x];
+		//try{
 	 
 		var cMan=map[newY][newX];
 		if (cMan) com.mans[map[newY][newX]].isShow = false;
@@ -81,17 +89,21 @@ play.regret = function (){
 		if (i==pace.length-1){
 			com.showPane(newX ,newY,x,y)
 		}
+		//} catch (e){
+		//	com.show()
+		//	z([key,p,pace,map])
 		
+		//	}
 	}
 	play.map = map;
-	play.my=1;
+	play.my=-1;
 	play.isPlay=true;
 	com.show();
 }
 
 
 
-//click event
+//点击棋盘事件
 play.clickCanvas = function (e){
 	if (!play.isPlay) return false;
 	var key = play.getClickMan(e);
@@ -105,17 +117,19 @@ play.clickCanvas = function (e){
 	}else {
 		play.clickPoint(x,y);
 	}
-	play.isFoul = play.checkFoul();//check foul
+	play.isFoul = play.checkFoul();//检测是不是长将
 }
 
+//点击棋子，两种情况，选中或者吃子
 play.clickMan = function (key,x,y){
 	var man = com.mans[key];
-	//"killed" an piece
+	//吃子
 	if (play.nowManKey&&play.nowManKey != key && man.my != com.mans[play.nowManKey ].my){
 		//man为被吃掉的棋子
 		if (play.indexOfPs(com.mans[play.nowManKey].ps,[x,y])){
 			man.isShow = false;
 			var pace=com.mans[play.nowManKey].x+""+com.mans[play.nowManKey].y
+			//z(bill.createMove(play.map,man.x,man.y,x,y))
 			delete play.map[com.mans[play.nowManKey].y][com.mans[play.nowManKey].x];
 			play.map[y][x] = play.nowManKey;
 			com.showPane(com.mans[play.nowManKey].x ,com.mans[play.nowManKey].y,x,y)
@@ -133,28 +147,30 @@ play.clickMan = function (key,x,y){
 			if (key == "j0") play.showWin (-1);
 			if (key == "J0") play.showWin (1);
 		}
-
+	// 选中棋子
 	}else{
-		if (man.my===1){
+		if (man.my===play.my){
 			if (com.mans[play.nowManKey]) com.mans[play.nowManKey].alpha = 1 ;
 			man.alpha = 0.8;
 			com.pane.isShow = false;
 			play.nowManKey = key;
-			com.mans[key].ps = com.mans[key].bl(); //get all point this piece can move to
+			com.mans[key].ps = com.mans[key].bl(); //获得所有能着点
 			com.dot.dots = com.mans[key].ps
 			com.show();
+			//com.get("selectAudio").start(0);
 			com.get("selectAudio").play();
 		}
 	}
 }
 
-//click empty space
+//点击着点
 play.clickPoint = function (x,y){
 	var key=play.nowManKey;
 	var man=com.mans[key];
 	if (play.nowManKey){
 		if (play.indexOfPs(com.mans[key].ps,[x,y])){
 			var pace=man.x+""+man.y
+			//z(bill.createMove(play.map,man.x,man.y,x,y))
 			delete play.map[man.y][man.x];
 			play.map[y][x] = key;
 			com.showPane(man.x ,man.y,x,y)
@@ -167,35 +183,43 @@ play.clickPoint = function (x,y){
 			com.show();
 			com.get("clickAudio").play();
 			setTimeout(play.AIPlay,500);
+		}else{
+			//alert("不能这么走哦！")
 		}
 	}
 	
 }
+play.AIPlay = function () {
+    // If human is playing as black (AI goes first), AI must be red.
+    // Otherwise, if human is red, then AI is black.
+        // Human is black, so AI moves as red.
+        play.my = 1;
+   
+    
+    var pace = AI.init(play.pace.join(""));
+    if (!pace) {
+        play.showWin(1);
+        return;
+    }
+    play.pace.push(pace.join(""));
+    
+    // Execute the move.
+    var key = play.map[pace[1]][pace[0]];
+    play.nowManKey = key;
+    
+    key = play.map[pace[3]][pace[2]];
+    if (key) {
+        play.AIclickMan(key, pace[2], pace[3]);
+    } else {
+        play.AIclickPoint(pace[2], pace[3]);
+    }
+    com.get("clickAudio").play();
+    play.my =-1;
+    // After the AI move, the control automatically returns to the human.
+};
 
-//Ai move
-play.AIPlay = function (){
-	play.my = -1 ;
-	var pace=AI.init(play.pace.join(""))
-	if (!pace) {
-		play.showWin (1);
-		return ;
-	}
-	play.pace.push(pace.join(""));
-	var key=play.map[pace[1]][pace[0]]
-		play.nowManKey = key;
-	
-	var key=play.map[pace[3]][pace[2]];
-	if (key){
-		play.AIclickMan(key,pace[2],pace[3]);
-	}else {
-		play.AIclickPoint(pace[2],pace[3]);
-	}
-	com.get("clickAudio").play();
-	
-	
-}
 
-//check foul
+//检查是否长将
 play.checkFoul = function(){
 	var p=play.pace;
 	var len=parseInt(p.length,10);
@@ -209,7 +233,7 @@ play.checkFoul = function(){
 
 play.AIclickMan = function (key,x,y){
 	var man = com.mans[key];
-	//"kill" a piece AI ver.
+	//吃子
 	man.isShow = false;
 	delete play.map[com.mans[play.nowManKey].y][com.mans[play.nowManKey].x];
 	play.map[y][x] = play.nowManKey;
@@ -250,7 +274,7 @@ play.indexOfPs = function (ps,xy){
 	
 }
 
-//get point of click
+//获得点击的着点
 play.getClickPoint = function (e){
 	var domXY = com.getDomXY(com.canvas);
 	var x=Math.round((e.pageX-domXY.x-com.pointStartX-20)/com.spaceX)
@@ -258,7 +282,7 @@ play.getClickPoint = function (e){
 	return {"x":x,"y":y}
 }
 
-//get parameter of the clicked piece
+//获得棋子
 play.getClickMan = function (e){
 	var clickXY=play.getClickPoint(e);
 	var x=clickXY.x;
@@ -270,9 +294,9 @@ play.getClickMan = function (e){
 play.showWin = function (my){
 	play.isPlay = false;
 	if (my===1){
-		alert("Congratulations, You Win!");
+		alert("恭喜你，你赢了！");
 	}else{
-		alert("unfortunately, You Lose.");
+		alert("很遗憾，你输了！");
 	}
 }
 
